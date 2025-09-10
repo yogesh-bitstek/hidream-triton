@@ -1,35 +1,15 @@
-# Base image: NVIDIA Triton Inference Server
-FROM nvcr.io/nvidia/tritonserver:25.01-pyt-python-py3
+# start from a clean base image (replace <version> with the desired [release](https://github.com/runpod-workers/worker-comfyui/releases))
+FROM runpod/worker-comfyui:5.4.1-base
 
-RUN pip install --no-cache-dir \
-    torch \
-    diffusers \
-    transformers \
-    accelerate \
-    safetensors \
-    Pillow \
-    hf_transfer \
-    protobuf \
-    bitsandbytes \
-    sentencepiece \
-    numpy \
-    runpod
+# install custom nodes using comfy-cli
+RUN comfy-node-install comfyui-kjnodes comfyui-ic-light comfyui-multigpu ComfyUI-GGUF comfyui_essentials_mb hidream_sampler
 
-# Copy HiDream model serving files
-RUN mkdir -p /models/hidream/1
-COPY models/hidream/1/model.py /models/hidream/1
-COPY models/hidream/config.pbtxt /models/hidream/
+RUN comfy model download --url https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI/resolve/main/split_files/diffusion_models/hidream_i1_full_fp16.safetensors --relative-path models/unet --filename hidream_i1_full_fp16.safetensors
+RUN comfy model download --url https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI/resolve/main/split_files/text_encoders/clip_l_hidream.safetensors --relative-path models/clip --filename clip_l_hidream.safetensors
+RUN comfy model download --url https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI/resolve/main/split_files/text_encoders/clip_g_hidream.safetensors --relative-path models/clip --filename clip_g_hidream.safetensors
+RUN comfy model download --url https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI/resolve/main/split_files/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors --relative-path models/clip --filename t5xxl_fp8_e4m3fn_scaled.safetensors
+RUN comfy model download --url https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI/resolve/main/split_files/text_encoders/llama_3.1_8b_instruct_fp8_scaled.safetensors --relative-path models/clip --filename llama_3.1_8b_instruct_fp8_scaled.safetensors
+RUN comfy model download --url https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI/resolve/main/split_files/vae/ae.safetensors --relative-path models/vae --filename ae.safetensors
 
-# Copy handler
-COPY handler.py /app/handler.py
-COPY requirements.txt /app/requirements.txt
-
-# Env vars for HF downloads
-ENV HF_HUB_ENABLE_HF_TRANSFER=1
-ENV HUGGINGFACE_HUB_CACHE=/cache/huggingface
-
-# Expose Triton ports
-EXPOSE 8000 8001 8002
-
-# Start both Triton & RunPod handler
-CMD ["sh", "-c", "tritonserver --model-repository=/models & python /app/handler.py"]
+# Copy local static input files into the ComfyUI input directory
+#COPY input/ /comfyui/input/
